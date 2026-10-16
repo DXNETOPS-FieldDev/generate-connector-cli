@@ -1,0 +1,49 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# SAMPLE: Critical-only NOC feed with BEARER token auth
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# PURPOSE
+#   Forward only CRITICAL severity alarms to a NOC or incident management
+#   system (e.g. PagerDuty, ServiceNow). Everything else — MAJOR, MINOR,
+#   CLEARED — is suppressed.
+#
+# WHAT THIS DEMONSTRATES
+#   - Include filter on a single severity level
+#   - BEARER token webhook authentication (token supplied via env var)
+#   - How to scope a connector to only the most urgent alarms
+#
+# SETUP
+#   export APPNETA_API_KEY=<your-appneta-api-key>
+#   export CUSTOMER_WEBHOOK_TOKEN=<your-webhook-bearer-token>
+#   python generate_connector.py samples/01-critical-only.toml --stdout
+#
+# NOTE
+#   notify_on includes ALARM_CLEARED so the NOC system can auto-resolve
+#   incidents when the critical condition clears. Remove ALARM_CLEARED if your
+#   system handles resolution separately.
+# ─────────────────────────────────────────────────────────────────────────────
+
+base_url  = "https://demo.pm.appneta.com"
+notify_on = ["ALARM_RAISED", "ALARM_CLEARED"]
+
+[connector]
+name        = "Acme NOC — Critical Alarms"
+description = "Forwards only CRITICAL severity alarms to the NOC ticketing system."
+enabled     = true
+
+[include]
+severity = ["CRITICAL"]
+
+[webhook]
+url               = "https://events.pagerduty.com/v2/enqueue"
+method            = "POST"
+ignore_ssl_errors = false
+
+[[webhook.headers]]
+key   = "Content-Type"
+value = "application/json"
+
+[webhook.auth]
+type = "BEARER"
+# Token is read from the CUSTOMER_WEBHOOK_TOKEN environment variable at runtime.
+# Never put the token value in this file.

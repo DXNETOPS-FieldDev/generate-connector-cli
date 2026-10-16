@@ -1,0 +1,124 @@
+# AppNeta Alarm Connector — sample config
+# Run: python generate_connector.py config_sample.toml [options]
+
+# ── API connection ───────────────────────────────────────────────────────────
+# Required for API calls (name→ID resolution). Can also be set via --base-url
+# on the CLI or the APPNETA_BASE_URL environment variable.
+base_url = "https://app-01.pm.appneta.com"
+
+# ── Which events trigger the webhook ───────────────────────────────────────
+# Valid values: ALARM_RAISED, ALARM_CLEARED
+notify_on = ["ALARM_RAISED", "ALARM_CLEARED"]
+
+# ── Connector identity ──────────────────────────────────────────────────────
+# If connector.id is set, the script generates a PUT (update) payload for that
+# connector and shows a diff vs. the current configuration.
+# If connector.id is absent, the script searches for a connector with this name:
+#   - match found → PUT (update)
+#   - no match    → POST (create new)
+# Name search requires a write-permission API key. If unavailable, POST is assumed.
+[connector]
+# id = 0         # optional: int64 connector ID — set after first POST to enable updates
+name = "Roadrunner Alert Feed"
+description = "Connector for Acme Corp network alerts"
+enabled = true
+
+# ── Include filters ─────────────────────────────────────────────────────────
+# Only alarms matching ALL specified criteria will be forwarded.
+# Leave a list empty (or remove the key) to mean "no restriction on this field".
+[include]
+# Severity levels to forward. Valid: CLEARED, CRITICAL, INDETERMINATE, MAJOR, MINOR, WARNING
+severity = ["CRITICAL", "MAJOR"]
+
+# Noise filter labels. Valid: FREQUENT
+noise_filter = []
+# noise_filter = ["FREQUENT"]
+
+# Monitoring point names, IDs, or glob patterns (*, **, ?, !, +)
+# Plain names and IDs are resolved via API; globs are passed directly to the API.
+monitoring_point_names = []
+# monitoring_point_names = ["ACME-MP-MesaFlats", "ACME-Lab-*"]
+
+# Monitoring point IDs (v4 global IDs) — dedicated numeric-only field.
+# Prefer this over embedding a numeric ID in monitoring_point_names above
+# when you already have the ID: it's unambiguous at a glance, and avoids
+# mixing an ID and a name for the same MP in one filter block (a combination
+# known to trigger an AppNeta-side ID substitution defect). Accepts a single
+# integer or a list.
+monitoring_point_ids = []
+# monitoring_point_ids = [2199023285464]
+
+# Monitoring point type substrings (matched case-insensitively)
+monitoring_point_types = []
+# monitoring_point_types = ["c50", "Windows"]
+
+# Monitoring policy names or IDs
+monitoring_policy_names = []
+# monitoring_policy_names = ["Roadrunner Express Policy"]
+
+# Monitoring policy IDs (v4 global IDs) — dedicated numeric-only field, same
+# rationale as monitoring_point_ids above. Accepts a single integer or a list.
+monitoring_policy_ids = []
+# monitoring_policy_ids = [2199023255992]
+
+# Monitoring policy group names
+monitoring_policy_group_names = []
+# monitoring_policy_group_names = ["Southwest Desert"]
+
+# Monitoring policy group IDs (v4 global IDs) — dedicated numeric-only field,
+# same rationale as monitoring_point_ids above. Accepts a single integer or a list.
+monitoring_policy_group_ids = []
+# monitoring_policy_group_ids = [2199023255603]
+
+# Alarm rule IDs — small integers (e.g. 105), obtained from the AppNeta GUI
+# (Alarms → Alarm Rules). No API endpoint is available to list or resolve them.
+alarm_rule_ids = []
+# alarm_rule_ids = [105]
+
+# Target hostnames or URLs. Accepts glob patterns (*, **, ?, !, +).
+targets = []
+# targets = ["roadrunner.acme.corp", "*.acme.corp"]
+
+# Tag filters — add one [[include.tags]] block per tag
+# [[include.tags]]
+# category = "Environment"
+# value = "Southwest Desert"
+
+# ── Exclude filters ─────────────────────────────────────────────────────────
+# Alarms matching ANY of these criteria will be suppressed.
+# CLI flags --exclude-mp-names, --exclude-mp-type, --exclude-policy, --exclude-policy-group
+# and --exclude-tag are merged into this section at runtime.
+[exclude]
+severity = []
+noise_filter = []
+monitoring_point_names = []
+monitoring_point_ids = []
+monitoring_point_types = []
+monitoring_policy_names = []
+monitoring_policy_ids = []
+monitoring_policy_group_names = []
+monitoring_policy_group_ids = []
+alarm_rule_ids = []
+targets = []
+
+# ── Webhook connector settings ──────────────────────────────────────────────
+[webhook]
+url = "https://hooks.acme.corp/appneta"
+method = "POST"
+ignore_ssl_errors = false
+
+# HTTP headers sent with every webhook call
+[[webhook.headers]]
+key   = "Content-Type"
+value = "application/json"
+# [[webhook.headers]]
+# key   = "X-Custom-Header"
+# value = "my-value"
+
+# Authentication — set type to NONE, BASIC, or BEARER
+# Credentials MUST NOT be stored here — export them as environment variables:
+#   BEARER auth: export CUSTOMER_WEBHOOK_TOKEN=<token>
+#   BASIC auth:  export CUSTOMER_WEBHOOK_PASSWORD=<password>
+[webhook.auth]
+type = "NONE"      # NONE | BASIC | BEARER
+username = ""      # used for BASIC (username is not a secret — may be set here)

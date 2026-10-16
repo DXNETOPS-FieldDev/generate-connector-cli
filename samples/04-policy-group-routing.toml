@@ -1,0 +1,65 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# SAMPLE: Route alarms by monitoring policy group
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# PURPOSE
+#   Forward alarms only from a specific business unit or network segment by
+#   filtering on monitoring policy groups. Policy groups in AppNeta are
+#   collections of monitoring policies that typically map to organizational
+#   boundaries (a region, a customer, a department).
+#
+#   This example routes branch office alarms to one webhook and excludes the
+#   data center group, which has its own connector.
+#
+# WHAT THIS DEMONSTRATES
+#   - Include filter on monitoring_policy_group_names (resolved to int64 IDs
+#     via GET /api/v4/monitoringPolicyGroup — no manual ID lookup needed)
+#   - Exclude filter on a different policy group in the same config
+#   - Combining policy group filters with severity to further scope the output
+#   - BASIC auth webhook (username in config, password from env var)
+#
+# SETUP
+#   export APPNETA_API_KEY=<your-appneta-api-key>
+#   export CUSTOMER_WEBHOOK_PASSWORD=<your-webhook-password>
+#   python generate_connector.py samples/04-policy-group-routing.toml --stdout
+# ─────────────────────────────────────────────────────────────────────────────
+
+base_url  = "https://demo.pm.appneta.com"
+notify_on = ["ALARM_RAISED", "ALARM_CLEARED"]
+
+[connector]
+name        = "Acme Branch Office Alarms"
+description = "CRITICAL and MAJOR alarms from branch office policy group only."
+enabled     = true
+
+[include]
+severity = ["CRITICAL", "MAJOR"]
+
+# Policy group names are resolved to int64 global IDs via the live API.
+# The exact name must match what appears in AppNeta (case-insensitive substring
+# match is NOT used here — the name must be an exact match).
+monitoring_policy_group_names = [
+    "Southwest Branch Offices",
+    "Canyon Operations",
+]
+
+[exclude]
+# Data center alarms go to a separate connector — exclude them here.
+monitoring_policy_group_names = [
+    "Desert Data Center",
+]
+
+[webhook]
+url               = "https://netops.acme.corp/api/alarms"
+method            = "POST"
+ignore_ssl_errors = false
+
+[[webhook.headers]]
+key   = "Content-Type"
+value = "application/json"
+
+[webhook.auth]
+type     = "BASIC"
+username = "appneta-connector"
+# Password is read from the CUSTOMER_WEBHOOK_PASSWORD environment variable.
+# Never put the password value in this file.

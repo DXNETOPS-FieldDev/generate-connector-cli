@@ -1,0 +1,56 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# SAMPLE: Suppress noisy / low-priority alarms
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# PURPOSE
+#   A general-purpose feed that forwards most alarms but filters out the
+#   low-signal events that are likely to cause alert fatigue:
+#     - MINOR and WARNING severity alarms
+#     - Alarms from frequently-flapping ("noisy") paths
+#     - Alarms from lab and development monitoring points (by glob)
+#
+# WHAT THIS DEMONSTRATES
+#   - Exclude filters on severity and noise_filter
+#   - Glob patterns in monitoring_point_names to suppress whole name prefixes
+#     (globs are passed to the API as-is; the script does not interpret them)
+#   - Multiple exclude criteria — an alarm is suppressed if it matches ANY one
+#
+# SETUP
+#   export APPNETA_API_KEY=<your-appneta-api-key>
+#   python generate_connector.py samples/02-suppress-noise.toml --stdout
+# ─────────────────────────────────────────────────────────────────────────────
+
+base_url  = "https://demo.pm.appneta.com"
+notify_on = ["ALARM_RAISED", "ALARM_CLEARED"]
+
+[connector]
+name        = "Acme Ops Feed — Noise Suppressed"
+description = "All alarms except MINOR/WARNING, frequent-flap paths, and lab MPs."
+enabled     = true
+
+[exclude]
+# Suppress low-priority severity levels
+severity    = ["MINOR", "WARNING"]
+
+# Suppress alarms from paths that are flagged as frequently flapping
+noise_filter = ["FREQUENT"]
+
+# Suppress alarms from lab and development monitoring points.
+# Glob patterns are accepted: * matches any sequence within a single name segment,
+# ** matches across segments. These are passed to the AppNeta API as-is.
+monitoring_point_names = [
+    "ACME-Lab-*",   # excludes ACME-Lab-Rocket, ACME-Lab-Catapult, etc.
+    "ACME-Dev-*",   # excludes all dev environment MPs
+]
+
+[webhook]
+url               = "https://hooks.acme.corp/appneta/ops"
+method            = "POST"
+ignore_ssl_errors = false
+
+[[webhook.headers]]
+key   = "Content-Type"
+value = "application/json"
+
+[webhook.auth]
+type = "NONE"

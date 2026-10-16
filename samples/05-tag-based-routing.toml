@@ -1,0 +1,68 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# SAMPLE: Route alarms by MP environment tag
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# PURPOSE
+#   Use AppNeta MP tags to route alarms to the right team. Tags are key:value
+#   pairs applied to monitoring points (e.g. Environment:Production,
+#   Cloud:AWS). This connector forwards alarms from Production and Staging MPs,
+#   and suppresses alarms from MPs tagged as Development or Test.
+#
+# WHAT THIS DEMONSTRATES
+#   - Include filter using [[include.tags]] — one block per tag
+#   - Exclude filter using [[exclude.tags]]
+#   - OR logic within include tags: an alarm is included if the MP has the
+#     Production tag OR the Staging tag (not necessarily both)
+#   - OR logic within exclude tags: an alarm is excluded if the MP has the
+#     Development tag OR the Test tag
+#   - Tags are validated against GET /api/v3/tag; unmatched tags are written
+#     to an errors file with available alternatives listed
+#
+# TAG FORMAT
+#   Each [[include.tags]] block requires:
+#     category = "the tag category as it appears in AppNeta"
+#     value    = "the tag value as it appears in AppNeta"
+#   Both are case-insensitive and trimmed of surrounding whitespace.
+#
+# SETUP
+#   export APPNETA_API_KEY=<your-appneta-api-key>
+#   python generate_connector.py samples/05-tag-based-routing.toml --stdout
+# ─────────────────────────────────────────────────────────────────────────────
+
+base_url  = "https://demo.pm.appneta.com"
+notify_on = ["ALARM_RAISED", "ALARM_CLEARED"]
+
+[connector]
+name        = "Acme Production Alarm Feed"
+description = "Forward alarms from Production and Staging MPs; suppress Dev and Test."
+enabled     = true
+
+# Include alarms from MPs tagged with either of these tags (OR logic).
+[[include.tags]]
+category = "Environment"
+value    = "Production"
+
+[[include.tags]]
+category = "Environment"
+value    = "Staging"
+
+# Suppress alarms from MPs tagged with either of these tags (OR logic).
+[[exclude.tags]]
+category = "Environment"
+value    = "Development"
+
+[[exclude.tags]]
+category = "Environment"
+value    = "Test"
+
+[webhook]
+url               = "https://hooks.acme.corp/appneta/production"
+method            = "POST"
+ignore_ssl_errors = false
+
+[[webhook.headers]]
+key   = "Content-Type"
+value = "application/json"
+
+[webhook.auth]
+type = "NONE"

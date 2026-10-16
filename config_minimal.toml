@@ -1,0 +1,18 @@
+# AppNeta Alarm Connector — minimal config
+# Run: python generate_connector.py config_minimal.toml
+
+base_url = "https://app-01.pm.appneta.com"
+
+notify_on = ["ALARM_RAISED", "ALARM_CLEARED"]
+
+[connector]
+id      = 0        # replace with the int64 connector ID to enable PUT (update) mode
+name    = "My Connector"
+enabled = true
+
+[webhook]
+url    = "https://hooks.example.com/appneta"
+method = "POST"
+
+[webhook.auth]
+type = "NONE"

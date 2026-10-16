@@ -1,0 +1,53 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# SAMPLE: OpsGenie (Atlassian) Alert Creation API
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# PURPOSE
+#   POST AppNeta alarm events to OpsGenie to create alerts that trigger
+#   on-call rotations and escalation policies.
+#
+# WHAT THIS DEMONSTRATES
+#   - OpsGenie auth uses a "GenieKey <api-key>" Authorization header.
+#     The API key comes from the OpsGenie integration page (API Integration type).
+#   - EU region customers use api.eu.opsgenie.com instead of api.opsgenie.com.
+#   - OpsGenie requires at minimum {"message": "..."} in the JSON body.
+#     AppNeta's alarm payload is accepted; OpsGenie treats unknown fields as
+#     extra properties and stores them without error.
+#
+# OPSGENIE SETUP (on the Atlassian/OpsGenie side)
+#   Teams → <team> → Integrations → Add Integration → API
+#   Note the API key from the integration. Use a team-scoped key (not account-level)
+#   so alerts are routed to the right on-call schedule.
+#
+# SETUP
+#   export APPNETA_API_KEY=<your-appneta-api-key>
+#   export OPSGENIE_API_KEY=<your-opsgenie-api-key>
+#   python generate_connector.py samples/09-opsgenie.toml --stdout
+# ─────────────────────────────────────────────────────────────────────────────
+
+base_url  = "https://demo.pm.appneta.com"
+notify_on = ["ALARM_RAISED", "ALARM_CLEARED"]
+
+[connector]
+name        = "Acme OpsGenie Feed"
+description = "Forwards AppNeta alarms to OpsGenie for on-call alerting."
+enabled     = true
+
+[webhook]
+# US region: api.opsgenie.com
+# EU region: api.eu.opsgenie.com
+url               = "https://api.opsgenie.com/v2/alerts"
+method            = "POST"
+ignore_ssl_errors = false
+
+[[webhook.headers]]
+key   = "Content-Type"
+value = "application/json"
+
+# OpsGenie auth: "GenieKey <api-key>" — note the non-standard prefix.
+[[webhook.headers]]
+key   = "Authorization"
+value = "GenieKey ${OPSGENIE_API_KEY}"
+
+[webhook.auth]
+type = "NONE"

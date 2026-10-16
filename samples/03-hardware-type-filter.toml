@@ -1,0 +1,61 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# SAMPLE: Filter by monitoring point hardware type
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# PURPOSE
+#   Forward alarms only from physical appliances (m50 microAppliances), while
+#   suppressing alarms from software agents running on servers or containers.
+#   Useful when a hardware team and a software team have separate alert channels.
+#
+# WHAT THIS DEMONSTRATES
+#   - Include filter on monitoring_point_types using substring matching
+#     ("m50" matches "m50 microAppliance" from the live API type list)
+#   - The built-in "n10" alias expands to ["Windows", "macOS"] — the API does
+#     not return "n10" as a type string, so the alias handles this automatically
+#   - Exclude filter on types in the same config to further narrow the output
+#   - OR logic within a single filter block: include applies if the alarm
+#     matches m50 OR m30 OR n10 (any one of them)
+#
+# TYPE RESOLUTION
+#   Plain strings in monitoring_point_types are matched as substrings against
+#   the live list of MP types in your org (from GET /api/v4/monitoringPoint).
+#   Examples:
+#     "m50"  → "m50 microAppliance"
+#     "m30"  → "m30 microAppliance"  (if deployed in your org)
+#     "n10"  → ["Windows", "macOS"]  (built-in alias)
+#     "c50"  → "c50 Container"
+#   Glob patterns (*, ?, etc.) are passed through to the API without expansion.
+#
+# SETUP
+#   export APPNETA_API_KEY=<your-appneta-api-key>
+#   python generate_connector.py samples/03-hardware-type-filter.toml --stdout
+# ─────────────────────────────────────────────────────────────────────────────
+
+base_url  = "https://demo.pm.appneta.com"
+notify_on = ["ALARM_RAISED", "ALARM_CLEARED"]
+
+[connector]
+name        = "Acme Hardware Team — Appliance Alarms"
+description = "Alarms from m50/m30 physical appliances and Windows/macOS agents only."
+enabled     = true
+
+[include]
+# Include alarms from these hardware types only.
+# "m50" and "m30" expand via substring match; "n10" uses the built-in alias.
+monitoring_point_types = ["m50", "m30", "n10"]
+
+[exclude]
+# Additionally suppress any MINOR alarms even from the included hardware types.
+severity = ["MINOR"]
+
+[webhook]
+url               = "https://hooks.acme.corp/appneta/hardware-team"
+method            = "POST"
+ignore_ssl_errors = false
+
+[[webhook.headers]]
+key   = "Content-Type"
+value = "application/json"
+
+[webhook.auth]
+type = "NONE"

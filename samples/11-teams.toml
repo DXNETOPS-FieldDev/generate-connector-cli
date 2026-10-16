@@ -1,0 +1,57 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# SAMPLE: Microsoft Teams — Power Automate Workflow webhook
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# PURPOSE
+#   POST AppNeta alarm events to a Microsoft Teams channel via a
+#   Power Automate Workflow webhook trigger.
+#
+# WHAT THIS DEMONSTRATES
+#   - Legacy Office 365 Connector webhooks (webhook.office.com URLs) were
+#     retired in March 2026. Use Power Automate Workflows instead.
+#   - Authentication is embedded in the workflow URL via a "sig=" query
+#     parameter. No Authorization header is needed or accepted.
+#   - The workflow URL is auto-generated when you create the flow and is
+#     long and opaque (logic.azure.com/workflows/...). Treat it as a secret.
+#   - AppNeta's alarm JSON will be received by the flow but won't render
+#     as a formatted Teams card without additional Workflow steps to build
+#     an Adaptive Card from the payload fields.
+#
+# TEAMS / POWER AUTOMATE SETUP
+#   Teams channel → ... → Workflows → Search "webhook"
+#   Select: "Post to a channel when a webhook request is received"
+#   Complete the wizard — Teams generates the webhook URL at the final step.
+#   Copy the full URL including the sig= parameter.
+#
+# SETUP
+#   export APPNETA_API_KEY=<your-appneta-api-key>
+#   export TEAMS_WEBHOOK_URL=<your-full-power-automate-webhook-url>
+#   python generate_connector.py samples/11-teams.toml --stdout
+#
+# NOTE: The webhook URL contains authentication (sig= parameter) and should
+# be treated as a credential. Store it in an env var, not in this file.
+# ─────────────────────────────────────────────────────────────────────────────
+
+base_url  = "https://demo.pm.appneta.com"
+notify_on = ["ALARM_RAISED", "ALARM_CLEARED"]
+
+[connector]
+name        = "Acme Teams NOC Channel"
+description = "Forwards AppNeta alarms to the NOC Teams channel via Power Automate."
+enabled     = true
+
+[webhook]
+# The full Power Automate webhook URL — auth is the sig= query parameter in the URL.
+# Store the URL in an environment variable; do not paste it directly into this file.
+url               = "${TEAMS_WEBHOOK_URL}"
+method            = "POST"
+ignore_ssl_errors = false
+
+[[webhook.headers]]
+key   = "Content-Type"
+value = "application/json"
+
+# No Authorization header — authentication is embedded in the URL's sig= parameter.
+
+[webhook.auth]
+type = "NONE"

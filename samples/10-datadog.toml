@@ -1,0 +1,57 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# SAMPLE: Datadog Logs HTTP Intake
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# PURPOSE
+#   Ship AppNeta alarm events to Datadog as log entries for correlation,
+#   dashboarding, and alerting within the Datadog platform.
+#
+# WHAT THIS DEMONSTRATES
+#   - Datadog uses a DD-API-KEY header (not Authorization) for log ingest.
+#     Use an API key (not an Application key — those are for management APIs).
+#   - The ingest URL is region-specific. Confirm your Datadog site:
+#       US1 (default): http-intake.logs.datadoghq.com
+#       US3:           http-intake.logs.us3.datadoghq.com
+#       US5:           http-intake.logs.us5.datadoghq.com
+#       EU:            http-intake.logs.datadoghq.eu
+#       AP1:           http-intake.logs.ap1.datadoghq.com
+#   - AppNeta's alarm JSON is accepted as-is. Standard Datadog log fields
+#     (message, ddsource, service, hostname, ddtags) are recognized; all
+#     other fields are stored as attributes.
+#
+# DATADOG SETUP (on the Datadog side)
+#   Organization Settings → API Keys → New Key
+#   Copy the key value — it is not shown again after creation.
+#
+# SETUP
+#   export APPNETA_API_KEY=<your-appneta-api-key>
+#   export DATADOG_API_KEY=<your-datadog-api-key>
+#   python generate_connector.py samples/10-datadog.toml --stdout
+# ─────────────────────────────────────────────────────────────────────────────
+
+base_url  = "https://demo.pm.appneta.com"
+notify_on = ["ALARM_RAISED", "ALARM_CLEARED"]
+
+[connector]
+name        = "Acme Datadog Logs Feed"
+description = "Forwards AppNeta alarms to Datadog Logs for correlation."
+enabled     = true
+
+[webhook]
+# US1 region (default). Adjust the hostname for your Datadog site — see comments above.
+url               = "https://http-intake.logs.datadoghq.com/api/v2/logs"
+method            = "POST"
+ignore_ssl_errors = false
+
+[[webhook.headers]]
+key   = "Content-Type"
+value = "application/json"
+
+# Datadog ingest auth uses DD-API-KEY, not Authorization.
+# Use an API key from Organization Settings → API Keys.
+[[webhook.headers]]
+key   = "DD-API-KEY"
+value = "${DATADOG_API_KEY}"
+
+[webhook.auth]
+type = "NONE"

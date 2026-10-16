@@ -1,0 +1,39 @@
+# AppNeta Alarm Connector — Splunk HEC config template
+#
+# Sends AppNeta alarm events directly to Splunk HTTP Event Collector.
+# Splunk HEC requires "Authorization: Splunk <token>" — use ${ENV_VAR} substitution
+# rather than the built-in BEARER auth type, which emits "Authorization: Bearer <token>".
+#
+# Usage:
+#   export APPNETA_API_KEY=<appneta-api-token>
+#   export SPLUNK_HEC_TOKEN=<your-splunk-hec-token>
+#   python generate_connector.py splunk_hec_connector.toml
+
+base_url = "https://app-01.pm.appneta.com"   # replace with your AppNeta base URL
+
+notify_on = ["ALARM_RAISED", "ALARM_CLEARED"]
+
+[connector]
+name        = "Splunk HEC Feed"
+description = "AppNeta alarm events forwarded to Splunk via HEC"
+enabled     = true
+
+[include]
+severity = ["CRITICAL", "MAJOR"]
+
+[webhook]
+# /raw accepts the AppNeta payload directly; set sourcetype via query param.
+# /event requires a {"event": {...}} wrapper and needs a middleware layer.
+url    = "https://splunk.example.com/services/collector/raw?sourcetype=appneta%3Aalarm"
+method = "POST"
+
+[[webhook.headers]]
+key   = "Content-Type"
+value = "application/json"
+
+[[webhook.headers]]
+key   = "Authorization"
+value = "Splunk ${SPLUNK_HEC_TOKEN}"
+
+[webhook.auth]
+type = "NONE"

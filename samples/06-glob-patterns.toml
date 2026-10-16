@@ -1,0 +1,81 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# SAMPLE: Glob patterns for MP names and targets
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# PURPOSE
+#   Demonstrate the glob pattern support in monitoring_point_names and targets.
+#   Instead of listing every MP name or target individually, globs let you
+#   express entire name families in a single entry.
+#
+# WHAT THIS DEMONSTRATES
+#   - Glob characters supported: *  **  ?  !  +
+#   - Globs in monitoring_point_names are passed to the API as-is — AppNeta
+#     does the matching server-side. The script does NOT expand or interpret
+#     them locally.
+#   - Plain MP names (no glob chars) are resolved to int64 IDs via the API.
+#     Mixing plain names and globs in the same list is supported.
+#   - Glob characters in monitoring_point_types are also passed through, but
+#     plain type strings use substring matching (e.g. "m50" → "m50 microAppliance").
+#   - Globs in targets match the destination host or URL of the monitored path.
+#
+# GLOB REFERENCE
+#   *        matches any sequence of characters within a name (single segment)
+#   **       matches across segments (more permissive than *)
+#   ?        matches any single character
+#   !prefix  negation — excludes names that would otherwise match
+#   +char    extended glob — one or more of char
+#
+# WARNING
+#   monitoring_point_names does NOT expand globs to ID lists — the glob itself
+#   is sent in the filter payload. The script will warn you if a glob char
+#   appears in a monitoring_point_names entry, so you know it is not being
+#   resolved to IDs.
+#
+# SETUP
+#   export APPNETA_API_KEY=<your-appneta-api-key>
+#   python generate_connector.py samples/06-glob-patterns.toml --stdout
+# ─────────────────────────────────────────────────────────────────────────────
+
+base_url  = "https://demo.pm.appneta.com"
+notify_on = ["ALARM_RAISED", "ALARM_CLEARED"]
+
+[connector]
+name        = "Acme Glob Demo Connector"
+description = "Demonstrates glob pattern usage for MP names and targets."
+enabled     = true
+
+[include]
+# Include alarms from MPs whose names match any of these patterns.
+# All three syntax forms are shown:
+monitoring_point_names = [
+    "ACME-MP-*",              # any MP whose name starts with ACME-MP-
+    "**-MesaFlats",           # any MP whose name ends with -MesaFlats (** crosses segments)
+    "ACME-Core-Probe-??",     # ACME-Core-Probe- followed by exactly two characters
+    "ACME-MP-CanyonRoad",     # plain name — resolved to int64 ID via API
+]
+
+# Include alarms for monitored paths whose target matches these patterns.
+# Useful for narrowing to a specific application or domain.
+targets = [
+    "*.acme.corp",            # any hostname under acme.corp
+    "https://api.acme.corp*", # any URL path under the API subdomain
+]
+
+[exclude]
+# Exclude the lab segment even if it matches the include patterns above.
+monitoring_point_names = [
+    "ACME-Lab-*",
+    "ACME-Dev-*",
+]
+
+[webhook]
+url               = "https://hooks.acme.corp/appneta/glob-test"
+method            = "POST"
+ignore_ssl_errors = false
+
+[[webhook.headers]]
+key   = "Content-Type"
+value = "application/json"
+
+[webhook.auth]
+type = "NONE"

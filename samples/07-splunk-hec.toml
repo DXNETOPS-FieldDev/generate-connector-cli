@@ -1,0 +1,67 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# SAMPLE: Splunk HTTP Event Collector (HEC) destination
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# PURPOSE
+#   Send AppNeta alarm events to a Splunk HEC endpoint for indexing and
+#   correlation with other operational data.
+#
+# WHAT THIS DEMONSTRATES
+#   - Splunk HEC requires a custom "Authorization: Splunk <token>" header.
+#     AppNeta's BEARER auth type sends "Authorization: Bearer <token>", which
+#     Splunk does not accept. The solution is to use auth.type = "NONE" and
+#     pass the token via a custom header using ${ENV_VAR} substitution.
+#   - ${SPLUNK_HEC_TOKEN} is substituted at runtime from the environment
+#     variable of the same name. If the variable is unset, the script prints
+#     a warning during the TOML precheck.
+#   - The /services/collector/raw endpoint accepts raw JSON; use
+#     /services/collector/event if you want Splunk to wrap the payload in an
+#     event envelope.
+#   - HEC SSL: if your Splunk instance uses a self-signed certificate on port
+#     8088, set ignore_ssl_errors = true — or configure a valid cert.
+#
+# SPLUNK HEC SETUP (on the Splunk side)
+#   Settings → Data Inputs → HTTP Event Collector → New Token
+#   Set the source type to _json and note the token value.
+#   Disable SSL on the HEC input if you are using HTTP (not HTTPS).
+#
+# SETUP
+#   export APPNETA_API_KEY=<your-appneta-api-key>
+#   export SPLUNK_HEC_TOKEN=<your-splunk-hec-token>
+#   python generate_connector.py samples/07-splunk-hec.toml --stdout
+# ─────────────────────────────────────────────────────────────────────────────
+
+base_url  = "https://demo.pm.appneta.com"
+notify_on = ["ALARM_RAISED", "ALARM_CLEARED"]
+
+[connector]
+name        = "Acme Splunk HEC Feed"
+description = "Forwards all AppNeta alarms to Splunk via HTTP Event Collector."
+enabled     = true
+
+# No filters — forward all alarms to Splunk for full visibility.
+# Add [include] or [exclude] blocks to scope the feed.
+
+[webhook]
+# Replace the host and port with your Splunk instance address.
+# Port 8088 is the default HEC port. Use /services/collector/raw for raw JSON.
+url               = "https://splunk.acme.corp:8088/services/collector/raw"
+method            = "POST"
+ignore_ssl_errors = false
+
+[[webhook.headers]]
+key   = "Content-Type"
+value = "application/json"
+
+# Splunk HEC authentication uses a custom header format: "Splunk <token>"
+# The token value is injected at runtime from the SPLUNK_HEC_TOKEN env var.
+# The script warns during precheck if the variable is not set.
+[[webhook.headers]]
+key   = "Authorization"
+value = "Splunk ${SPLUNK_HEC_TOKEN}"
+
+# Use NONE here — authentication is handled by the custom header above.
+# Setting type = BEARER would produce "Authorization: Bearer <token>" which
+# Splunk HEC does not recognize.
+[webhook.auth]
+type = "NONE"

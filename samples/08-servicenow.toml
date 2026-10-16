@@ -1,0 +1,58 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# SAMPLE: ServiceNow Scripted REST API destination
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# PURPOSE
+#   POST AppNeta alarm events to a ServiceNow Scripted REST API endpoint,
+#   where a customer-written script creates or updates incident/event records.
+#
+# WHAT THIS DEMONSTRATES
+#   - ServiceNow uses HTTP Basic auth: base64(username:password) in the
+#     Authorization header. Use a dedicated service account, not a personal login.
+#   - The URL structure is customer-defined — there is no standard path.
+#     The instance name, API namespace, API name, and resource path are all
+#     chosen when the Scripted REST API is created in ServiceNow Studio.
+#   - ${SERVICENOW_PASSWORD} is substituted at runtime from the environment
+#     variable of the same name. Encode the full Authorization value as
+#     "Basic $(echo -n 'user:pass' | base64)" and set the env var to that.
+#   - Some shops skip the Authorization header and use a shared secret in a
+#     custom header validated inside the scripted REST script instead.
+#
+# SERVICENOW SETUP (on the ServiceNow side)
+#   ServiceNow Studio → Scripted REST APIs → New API
+#   Add a resource with HTTP method POST and write a Script to parse the body.
+#   The namespace and API name form the URL: /api/<namespace>/<api-name>/<resource>
+#
+# SETUP
+#   export APPNETA_API_KEY=<your-appneta-api-key>
+#   export SERVICENOW_AUTH=Basic <base64(svc-account:password)>
+#   python generate_connector.py samples/08-servicenow.toml --stdout
+# ─────────────────────────────────────────────────────────────────────────────
+
+base_url  = "https://demo.pm.appneta.com"
+notify_on = ["ALARM_RAISED", "ALARM_CLEARED"]
+
+[connector]
+name        = "Acme ServiceNow Feed"
+description = "Forwards AppNeta alarms to ServiceNow for incident creation."
+enabled     = true
+
+[webhook]
+# Replace <instance>, <namespace>, <api-name>, and <resource> with your values.
+# The path structure is defined when the Scripted REST API is created.
+url               = "https://<instance>.service-now.com/api/<namespace>/<api-name>/appneta-alarm"
+method            = "POST"
+ignore_ssl_errors = false
+
+[[webhook.headers]]
+key   = "Content-Type"
+value = "application/json"
+
+# HTTP Basic auth: "Basic <base64(username:password)>"
+# Use a dedicated service account. Inject the full header value via env var.
+[[webhook.headers]]
+key   = "Authorization"
+value = "${SERVICENOW_AUTH}"
+
+[webhook.auth]
+type = "NONE"
