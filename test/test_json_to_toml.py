@@ -187,23 +187,57 @@ class TestFilterBlocks(unittest.TestCase):
         self.assertIn("exclude", parsed)
         self.assertEqual(parsed["exclude"]["monitoring_point_types"], ["c50 Container"])
 
-    def test_ids_become_comments_not_toml_keys(self):
-        # IDs can't be reverse-resolved; they must NOT appear as TOML keys
-        parsed = self._parse(FULL_JSON)
-        self.assertNotIn("monitoring_point_id", parsed.get("include", {}))
-        self.assertNotIn("monitoring_policy_id", parsed.get("include", {}))
-        self.assertNotIn("monitoring_policy_group_id", parsed.get("include", {}))
+    def test_ids_are_emitted_as_real_id_keys(self):
+        inc = self._parse(FULL_JSON)["include"]
+        self.assertEqual(inc["monitoring_point_ids"], [111111, 222222])
+        self.assertEqual(inc["monitoring_policy_ids"], [333])
+        self.assertEqual(inc["monitoring_policy_group_ids"], [444])
 
-    def test_ids_appear_in_raw_output_as_comments(self):
-        content = jtt.json_to_toml(FULL_JSON)
-        self.assertIn("111111", content)
-        self.assertIn("222222", content)
-        self.assertIn("333", content)
-        self.assertIn("444", content)
-        # They must be commented out
-        for line in content.splitlines():
-            if "111111" in line or "333" in line or "444" in line:
-                self.assertTrue(line.strip().startswith("#"), f"ID line not commented: {line!r}")
+    def test_severity_noise_rules_and_targets_round_trip(self):
+        data = {**MINIMAL_JSON, "include": {
+            "severity": ["CRITICAL"], "noiseFilter": ["FREQUENT"],
+            "alarmRuleId": [105], "target": ["192.0.2.1"]}}
+        inc = self._parse(data)["include"]
+        self.assertEqual(inc["severity"], ["CRITICAL"])
+        self.assertEqual(inc["noise_filter"], ["FREQUENT"])
+        self.assertEqual(inc["alarm_rule_ids"], [105])
+        self.assertEqual(inc["targets"], ["192.0.2.1"])
+
+    def test_generator_style_singular_tag_key_is_read(self):
+        data = {**MINIMAL_JSON, "include": {"tag": [{"category": "A", "value": "b"}]}}
+        self.assertEqual(self._parse(data)["include"]["tags"], [{"category": "A", "value": "b"}])
+
+    def test_ignore_ssl_errors_reads_the_api_spelling(self):
+        conn = {**MINIMAL_JSON["connectors"][0]}
+        conn.pop("ignoreSslErrors", None)
+        conn["ignoreSSLErrors"] = True
+        parsed = self._parse({**MINIMAL_JSON, "connectors": [conn]})
+        self.assertTrue(parsed["webhook"]["ignore_ssl_errors"])
+
+    def test_credentials_are_never_written(self):
+        conn = {**MINIMAL_JSON["connectors"][0], "auth": {"type": "BASIC", "username": "u", "password": "hunter2"}}
+        content = jtt.json_to_toml({**MINIMAL_JSON, "connectors": [conn]})
+        self.assertNotIn("hunter2", content)
+        self.assertIn("CUSTOMER_WEBHOOK_PASSWORD", content)
+
+    def test_control_characters_are_escaped_and_still_parse(self):
+        data = {**MINIMAL_JSON, "name": "a\nb\tc\x01"}
+        self.assertEqual(self._parse(data)["connector"]["name"], "a\nb\tc\x01")
+
+    def test_non_object_input_is_a_clean_error(self):
+        for bad in ([], None, "x", 5):
+            with self.subTest(bad), self.assertRaises(SystemExit):
+                jtt.json_to_toml(bad)
+
+    def test_written_file_is_private(self):
+        import stat
+        with tempfile.TemporaryDirectory() as d:
+            src = os.path.join(d, "c.json")
+            with open(src, "w") as fh:
+                json.dump(MINIMAL_JSON, fh)
+            sys.argv = ["json_to_toml.py", src]
+            jtt.main()
+            self.assertEqual(stat.S_IMODE(os.stat(os.path.join(d, "c.toml")).st_mode), 0o600)
 
     def test_no_filter_blocks_when_absent(self):
         parsed = self._parse(MINIMAL_JSON)

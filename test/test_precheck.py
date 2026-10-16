@@ -534,7 +534,7 @@ name = "Test Connector"
 [webhook]
 url = "https://example.com/hook"
 [include]
-{field} = ["sv-trident"]
+{field} = ["mp-site-a"]
 """
                 errors = errors_for(toml)
                 self.assertEqual(len(errors), 1)
@@ -620,3 +620,20 @@ monitoring_point_ids = { foo = "bar" }
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestBooleansAreNotIntegers(unittest.TestCase):
+    """TOML `true` is a Python bool, which is an int subclass: it must not pass as an ID."""
+
+    def _body(self, line):
+        return MINIMAL_VALID + "\n[include]\n" + line + "\n"
+
+    def test_boolean_in_id_lists_is_an_error(self):
+        for line in ("monitoring_point_ids = [true]", "monitoring_policy_ids = true",
+                     "monitoring_policy_group_ids = [false, 5]", "alarm_rule_ids = [true]"):
+            with self.subTest(line):
+                self.assertTrue(errors_for(self._body(line)), line)
+
+    def test_boolean_connector_id_is_an_error(self):
+        toml = MINIMAL_VALID.replace('name = "Test Connector"', 'name = "Test Connector"\nid = true', 1)
+        self.assertTrue(errors_for(toml))

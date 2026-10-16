@@ -388,7 +388,7 @@ The `monitoring_point_names`, `monitoring_point_types`, and `targets` filter fie
 |---|---|---|---|
 | `*` | Any sequence of characters | `ac*` | `acme-m50`, `ac-lab-01` |
 | `**` | Same as `*` for flat strings | `ac**` | Same as `ac*` |
-| `?` | Exactly one character | `?v-trident` | `sv-trident` |
+| `?` | Exactly one character | `?p-site-a` | `mp-site-a` |
 | `!` | **No effect — does not exclude anything.** | `!acme-m50` | Nothing — passes through unchanged, as if `!acme-m50` weren't in the list at all |
 | `+` | One or more characters (not reliably supported; prefer `*`) | `ac+` | Intended: names starting with ac |
 
@@ -694,7 +694,7 @@ python support/json_to_toml.py connector.json --stdout
 
 **Masked credential values** (`******`) are detected automatically. The script exits with an error listing every field that must be restored before conversion proceeds. AppNeta masks credential header values (e.g. `Authorization`) in GET responses — fill these in manually after conversion.
 
-**ID-based filters** (`monitoringPointId`, `monitoringPolicyId`, `monitoringPolicyGroupId`) cannot be reverse-resolved to names without an API call. They are emitted as TOML comments with the raw IDs listed; replace each with the corresponding `monitoring_point_names` / `monitoring_policy_names` entry.
+**ID-based filters** (`monitoringPointId`, `monitoringPolicyId`, `monitoringPolicyGroupId`) cannot be reverse-resolved to names without an API call. They are emitted as `monitoring_point_ids` / `monitoring_policy_ids` / `monitoring_policy_group_ids`, which `generate_connector.py` accepts as-is. Credentials are never written to the TOML; set `CUSTOMER_WEBHOOK_TOKEN` / `CUSTOMER_WEBHOOK_PASSWORD` in the environment.
 
 #### Recovering from a bad PUT
 

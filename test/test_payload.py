@@ -243,5 +243,40 @@ class TestDiffConnector(unittest.TestCase):
         self.assertEqual(gc.diff_connector(p, p), [])
 
 
+class TestMergeContradictionsAndSsl(unittest.TestCase):
+
+    EXISTING = {"name": "Old", "include": {"severity": ["CRITICAL"]}, "exclude": {},
+                "connectors": [{"id": 9, "type": "WEBHOOK", "url": "https://old.example.com"}]}
+
+    def test_contradiction_created_by_merge_is_resolved_exclude_wins(self):
+        payload = {"name": "X", "exclude": {"severity": ["CRITICAL"]},
+                   "connectors": [{"type": "WEBHOOK", "url": "https://n.example.com"}]}
+        errors = []
+        merged = gc.merge_with_existing(payload, self.EXISTING, errors=errors, org_name="Acme")
+        self.assertNotIn("severity", merged.get("include", {}))
+        self.assertEqual(merged["exclude"]["severity"], ["CRITICAL"])
+        self.assertTrue(any(e.get("type") == "contradiction" for e in errors))
+
+    def test_explicit_ignore_ssl_false_overrides_existing_true(self):
+        existing = {**self.EXISTING, "connectors": [{"id": 9, "type": "WEBHOOK", "url": "https://o", "ignoreSSLErrors": True}]}
+        payload = {"name": "X", "connectors": [{"type": "WEBHOOK", "url": "https://n", "ignoreSSLErrors": False}]}
+        self.assertIs(gc.merge_with_existing(payload, existing)["connectors"][0]["ignoreSSLErrors"], False)
+
+    def test_toml_ignore_ssl_errors_false_is_emitted_explicitly(self):
+        from unittest.mock import MagicMock
+        for flag, expected in ((False, False), (True, True)):
+            cfg = {"connector": {"name": "N"}, "webhook": {"url": "https://h.example.com", "ignore_ssl_errors": flag}}
+            client = MagicMock(); client.org_name = "Acme"
+            payload = gc.build_payload(cfg, MagicMock(), client, [])
+            self.assertIs(payload["connectors"][0]["ignoreSSLErrors"], expected)
+
+    def test_ignore_ssl_errors_is_omitted_when_not_configured(self):
+        from unittest.mock import MagicMock
+        cfg = {"connector": {"name": "N"}, "webhook": {"url": "https://h.example.com"}}
+        client = MagicMock(); client.org_name = "Acme"
+        payload = gc.build_payload(cfg, MagicMock(), client, [])
+        self.assertNotIn("ignoreSSLErrors", payload["connectors"][0])
+
+
 if __name__ == "__main__":
     unittest.main()

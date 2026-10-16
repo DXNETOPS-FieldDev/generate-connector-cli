@@ -199,10 +199,10 @@ def precheck_toml(path: str) -> tuple[dict | None, list[dict]]:
     # ── org ────────────────────────────────────────────────────────────────
     org = config.get("org")
     if org is not None:
-        if isinstance(org, int):
+        if isinstance(org, int) and not isinstance(org, bool):
             pass  # single numeric ID
         elif isinstance(org, list):
-            non_int = [x for x in org if not isinstance(x, int)]
+            non_int = [x for x in org if isinstance(x, bool) or not isinstance(x, int)]
             if non_int:
                 err("org",
                     f"org must be a list of integer org IDs, found non-integer value(s): {non_int}",
@@ -273,13 +273,16 @@ def precheck_toml(path: str) -> tuple[dict | None, list[dict]]:
         elif _has_crlf(name) or _has_ctrl(name):
             err("connector.name", "connector.name must not contain line breaks or invalid control characters.")
         desc = connector.get("description", "")
-        if desc and isinstance(desc, str):
+        if not isinstance(desc, str):
+            err("connector.description", f"connector.description must be a string, got {type(desc).__name__}: {desc!r}",
+                'Fix: description = "What this connector is for"')
+        elif desc:
             if len(desc) > 2000:
                 err("connector.description", "connector.description is too long (max 2000 characters).")
             elif _has_ctrl(desc):
                 err("connector.description", "connector.description contains invalid control characters.")
         cid = connector.get("id")
-        if cid is not None and not isinstance(cid, int):
+        if cid is not None and (isinstance(cid, bool) or not isinstance(cid, int)):
             err("connector.id",
                 f"connector.id must be an integer (int64 connector ID), got {type(cid).__name__}: {cid!r}",
                 "Fix: id = 12345678  # integer, no quotes")
@@ -340,7 +343,15 @@ def precheck_toml(path: str) -> tuple[dict | None, list[dict]]:
                         err(f"webhook.headers[{i}].{key}",
                             f"Unknown key '{key}' in header entry.",
                             "Valid keys: key (or name), value")
-                hkey = (h.get("key") or h.get("name") or "").strip()
+                raw_key = h.get("key") or h.get("name") or ""
+                if not isinstance(raw_key, str):
+                    err(f"webhook.headers[{i}].key",
+                        f"Header key must be a string, got {type(raw_key).__name__}: {raw_key!r}",
+                        'Fix: key = "Content-Type"')
+                    raw_key = ""
+                    hkey = "x"
+                else:
+                    hkey = raw_key.strip()
                 if not hkey:
                     err(f"webhook.headers[{i}]", "Header entry is missing a 'key' field.",
                         'Fix: key = "Content-Type"')
@@ -350,7 +361,11 @@ def precheck_toml(path: str) -> tuple[dict | None, list[dict]]:
                 if "value" not in h:
                     err(f"webhook.headers[{i}]", "Header entry is missing a 'value' field.",
                         'Fix: value = "application/json"')
-                elif isinstance(h.get("value"), str):
+                elif not isinstance(h.get("value"), str):
+                    err(f"webhook.headers[{i}].value",
+                        f"Header value must be a string, got {type(h['value']).__name__}: {h['value']!r}",
+                        'Fix: value = "application/json"')
+                else:
                     if _has_crlf(h["value"]) or _has_ctrl(h["value"]):
                         err(f"webhook.headers[{i}].value",
                             "Header value contains invalid control characters "
@@ -439,6 +454,12 @@ def precheck_toml(path: str) -> tuple[dict | None, list[dict]]:
             if val is not None and not isinstance(val, list):
                 err(f"{section_name}.{field}", f"{field} must be a list of strings.",
                     f"Fix: {field} = [\"value1\", \"value2\"]")
+            elif val is not None:
+                bad = [x for x in val if not isinstance(x, str)]
+                if bad:
+                    err(f"{section_name}.{field}",
+                        f"{field} must contain strings only (quote them). Found: {bad}",
+                        f"Fix: {field} = [\"value1\", \"value2\"]")
 
         mp_names = section.get("monitoring_point_names")
         if isinstance(mp_names, list):
@@ -456,7 +477,7 @@ def precheck_toml(path: str) -> tuple[dict | None, list[dict]]:
                 err(f"{section_name}.alarm_rule_ids", "alarm_rule_ids must be a list of integers.",
                     "Fix: alarm_rule_ids = [105, 106]")
             else:
-                non_int = [x for x in ari if not isinstance(x, int)]
+                non_int = [x for x in ari if isinstance(x, bool) or not isinstance(x, int)]
                 if non_int:
                     err(f"{section_name}.alarm_rule_ids",
                         f"alarm_rule_ids must contain integers only. Found: {non_int}",
@@ -473,13 +494,13 @@ def precheck_toml(path: str) -> tuple[dict | None, list[dict]]:
             if raw is None:
                 continue
             # Accept a single bare integer as a convenience, same as a one-item list.
-            values = [raw] if isinstance(raw, int) else raw
+            values = [raw] if isinstance(raw, int) and not isinstance(raw, bool) else raw
             if not isinstance(values, list):
                 err(f"{section_name}.{toml_key}",
                     f"{toml_key} must be an integer or a list of integers.",
                     f"Fix: {toml_key} = 2199023290142   # or: {toml_key} = [2199023290142, 2199023289104]")
                 continue
-            non_int = [x for x in values if not isinstance(x, int)]
+            non_int = [x for x in values if isinstance(x, bool) or not isinstance(x, int)]
             if non_int:
                 err(f"{section_name}.{toml_key}",
                     f"{toml_key} must contain integers only (no names, no quoted strings). Found: {non_int}",
@@ -503,12 +524,15 @@ def precheck_toml(path: str) -> tuple[dict | None, list[dict]]:
                             "Each tag entry must be a TOML table with category and value.",
                             f"Fix:\n[[{section_name}.tags]]\ncategory = \"...\"\nvalue = \"...\"")
                         continue
-                    if not tag.get("category"):
-                        err(f"{section_name}.tags[{i}]", "Tag entry is missing 'category'.",
-                            'Fix: category = "Environment"')
-                    if not tag.get("value"):
-                        err(f"{section_name}.tags[{i}]", "Tag entry is missing 'value'.",
-                            'Fix: value = "Production"')
+                    for tf, ex in (("category", "Environment"), ("value", "Production")):
+                        tv = tag.get(tf)
+                        if not tv:
+                            err(f"{section_name}.tags[{i}]", f"Tag entry is missing '{tf}'.",
+                                f'Fix: {tf} = "{ex}"')
+                        elif not isinstance(tv, str):
+                            err(f"{section_name}.tags[{i}].{tf}",
+                                f"Tag {tf} must be a string, got {type(tv).__name__}: {tv!r}",
+                                f'Fix: {tf} = "{ex}"')
 
     # ── OR-logic warning for include block ────────────────────────────────────
     # Structural check only — no API calls. Fires when 2+ include filter fields
@@ -742,6 +766,17 @@ def load_config(path: str) -> dict:
 # ---------------------------------------------------------------------------
 # API client (stdlib urllib only) — one instance per organization
 # ---------------------------------------------------------------------------
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """Refuse every redirect: following one would forward the Authorization header (the
+    API key) to whatever host the response names. AppNeta's API never redirects."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+urllib.request.install_opener(urllib.request.build_opener(_NoRedirect))
+
 
 class AppNetaClient:
     def __init__(self, base_url: str, api_key: str, org_id: int, org_name: str):
@@ -1159,7 +1194,7 @@ def resolve_connector_mode(
     return "PUT", int(explicit_id), existing
 
 
-def merge_with_existing(payload: dict, existing: dict) -> dict:
+def merge_with_existing(payload: dict, existing: dict, errors: list | None = None, org_name: str = "") -> dict:
     """Merge a generated payload with the existing connector for UPDATE (PUT) mode.
 
     Semantics: fields present in the TOML-generated payload override the existing
@@ -1201,6 +1236,15 @@ def merge_with_existing(payload: dict, existing: dict) -> dict:
                 mc = dict(new_conn)
             merged_conns.append(mc)
         merged["connectors"] = merged_conns
+
+    # The field-by-field merge can pair an existing include value with a new exclude
+    # value (or vice versa). Resolve exactly as build_payload does: exclude wins.
+    if merged.get("include") and merged.get("exclude"):
+        _remove_contradictions(merged["include"], merged["exclude"],
+                               errors if errors is not None else [], org_name)
+        for block_name in ("include", "exclude"):
+            if not merged[block_name]:
+                del merged[block_name]
 
     if "description" not in merged and existing.get("description"):
         merged["description"] = existing["description"]
@@ -1297,8 +1341,8 @@ def build_filter(
         raw = section.get(toml_key)
         if raw is None:
             continue
-        values = [raw] if isinstance(raw, int) else list(raw)
-        ids = sorted({int(x) for x in values if isinstance(x, int) and x > 0})
+        values = [raw] if isinstance(raw, int) and not isinstance(raw, bool) else list(raw)
+        ids = sorted({int(x) for x in values if isinstance(x, int) and not isinstance(x, bool) and x > 0})
         if ids:
             out[out_key] = sorted(set(out.get(out_key, [])) | set(ids))
 
@@ -1467,8 +1511,9 @@ def build_payload(config: dict, args: argparse.Namespace, client: "AppNetaClient
         elif auth_type == "BEARER":
             auth_block["token"] = os.environ["CUSTOMER_WEBHOOK_TOKEN"]
         connector_entry["auth"] = auth_block
-    if webhook.get("ignore_ssl_errors"):
-        connector_entry["ignoreSSLErrors"] = True
+    if "ignore_ssl_errors" in webhook:
+        # Emitted even when false: on UPDATE it is the only way to switch TLS verification back on.
+        connector_entry["ignoreSSLErrors"] = bool(webhook["ignore_ssl_errors"])
 
     connector_cfg = config.get("connector", {})
     payload: dict[str, Any] = {
@@ -1505,6 +1550,11 @@ def interpolate_env(value: str) -> str:
                 f"  Export it before running:\n"
                 f"    export {var}=<value>"
             )
+        if _has_crlf(val) or _has_ctrl(val):
+            sys.exit(
+                f"ERROR: environment variable {var} contains line breaks or control characters — "
+                "that would inject headers into AppNeta's webhook calls."
+            )
         return val
     return _ENV_VAR_RE.sub(_sub, value)
 
@@ -1525,6 +1575,36 @@ def write_file(path: str, content: str) -> None:
     with os.fdopen(fd, "w") as f:
         f.write(content + "\n")
     print(f"Written to {path}", file=sys.stderr)
+
+
+def _write_backup(existing: dict, connector_id: int) -> str:
+    """Save the pre-change connector JSON next to the output, owner-only."""
+    ts = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+    path = f"{ts}-connector-{connector_id}.json"
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
+        json.dump(existing, f, indent=2)
+    return path
+
+
+def _require_existing(existing: dict | None, connector_id: int, org_name: str, lenient: bool) -> None:
+    """An UPDATE we cannot read back would replace the connector blind; refuse unless --lenient."""
+    if existing is None and not lenient:
+        sys.exit(
+            f"ERROR: connector.id={connector_id} in org {org_name!r} could not be read, so the update "
+            "cannot be merged or diffed and would overwrite it blind.\n"
+            "  Check the ID and that the API key can read this org's connectors, "
+            "or use --lenient to PUT the generated payload as-is."
+        )
+
+
+def _orgs_with_emptied_include(results: list, errors: list[dict]) -> list[str]:
+    """Orgs where a contradiction removed the last include criterion.
+
+    exclude-wins can leave only an exclude block, which turns 'only X' into 'everything except X'.
+    """
+    hit = {e.get("org") for e in errors if e.get("type") == "contradiction"}
+    return [c.org_name for c, p in results if c.org_name in hit and "include" not in p]
 
 
 def write_errors(errors: list[dict], stem: str, source_desc: str) -> str:
@@ -1581,10 +1661,19 @@ def _validate_base_url(url: str) -> None:
     DNS entry at all.
     """
     parsed = urllib.parse.urlparse(url)
-    if parsed.scheme != "https" or not parsed.netloc:
+    try:
+        port = parsed.port
+    except ValueError:
+        port = 0
+    if (parsed.scheme != "https" or not parsed.netloc or not parsed.hostname
+            or any(ord(c) < 0x21 or ord(c) == 0x7F for c in url)
+            or "@" in parsed.netloc or parsed.path.rstrip("/") or parsed.query or parsed.fragment
+            or "?" in url or "#" in url
+            or (port is not None and not 1 <= port <= 65535)):
         sys.exit(
             f"ERROR: base_url must be a valid HTTPS URL.\n"
             f"  Got: {url!r}\n"
+            f"  Scheme and host (optional port) only: no credentials, path, query or fragment.\n"
             f"  Example: https://app-01.pm.appneta.com or https://192.0.2.10"
         )
 
@@ -1599,8 +1688,19 @@ def validate_config(config: dict) -> None:
     if missing:
         sys.exit("ERROR: Missing required config field(s): " + ", ".join(missing))
 
+    webhook_cfg = config.get("webhook", {})
+    injectable = [("connector.name", config.get("connector", {}).get("name")),
+                  ("connector.description", config.get("connector", {}).get("description")),
+                  ("webhook.url", webhook_cfg.get("url")),
+                  ("webhook.auth.username", (webhook_cfg.get("auth") or {}).get("username"))]
+    for h in webhook_cfg.get("headers") or []:
+        injectable += [("webhook.headers key", h.get("key") or h.get("name")), ("webhook.headers value", h.get("value"))]
+    for label, val in injectable:
+        if isinstance(val, str) and (_has_crlf(val) or _has_ctrl(val)):
+            sys.exit(f"ERROR: {label} contains line breaks or control characters: {val!r}")
+
     connector_id = config.get("connector", {}).get("id")
-    if connector_id is not None and not isinstance(connector_id, int):
+    if connector_id is not None and (isinstance(connector_id, bool) or not isinstance(connector_id, int)):
         sys.exit(
             f"ERROR: connector.id must be an integer (int64 connector ID), "
             f"got {type(connector_id).__name__}: {connector_id!r}"
@@ -2110,7 +2210,9 @@ def main() -> None:
         error_stem = safe_name
         error_source = f"CLI-only (connector: {args.connector_name})"
 
-        if args.generate_toml:
+        if args.generate_toml and args.dry_run:
+            print(f"[dry-run] would generate TOML config: {args.generate_toml}", file=sys.stderr)
+        elif args.generate_toml:
             if os.path.exists(args.generate_toml):
                 print(f"[!] Overwriting existing file: {args.generate_toml}", file=sys.stderr)
             toml_str = generate_toml_content(args)
@@ -2230,15 +2332,14 @@ def main() -> None:
         if mode == "PUT":
             payload["id"] = connector_id
             print(f"  Mode   : UPDATE (connector.id={connector_id})", file=sys.stderr)
+            _require_existing(existing, connector_id, client.org_name, args.lenient)
             if existing is None:
                 print("  (existing connector not readable — merge and diff unavailable)", file=sys.stderr)
             else:
-                ts = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-                backup_path = f"{ts}-connector-{connector_id}.json"
-                with open(backup_path, "w", encoding="utf-8") as _bf:
-                    json.dump(existing, _bf, indent=2)
-                print(f"  Backup : {backup_path} (credential header values are masked as ****** by AppNeta — restore them manually before reusing)", file=sys.stderr)
-                payload = merge_with_existing(payload, existing)
+                if not args.dry_run:
+                    backup_path = _write_backup(existing, connector_id)
+                    print(f"  Backup : {backup_path} (credential header values are masked as ****** by AppNeta — restore them manually before reusing)", file=sys.stderr)
+                payload = merge_with_existing(payload, existing, all_errors, client.org_name)
                 diff = diff_connector(existing, payload)
                 if diff:
                     print("  Changes vs. existing connector:", file=sys.stderr)
@@ -2275,7 +2376,8 @@ def main() -> None:
             f"\n{_red}WARNING: {n} filter value(s) could not be resolved and were omitted from the payload.{_reset}",
             file=sys.stderr,
         )
-        write_errors(resolution_errors, error_stem, error_source)
+        if not args.dry_run:
+            write_errors(resolution_errors, error_stem, error_source)
         if not args.lenient:
             print(
                 f"{_red}Exiting without output — fix the resolution error(s) above and re-run.{_reset}\n"
@@ -2308,6 +2410,20 @@ def main() -> None:
                 f"Use --lenient to generate the unfiltered payload anyway.{_reset}",
                 file=sys.stderr,
             )
+            sys.exit(1)
+
+    emptied = _orgs_with_emptied_include(results, all_errors)
+    if emptied:
+        _red = "\033[31m" if sys.stderr.isatty() else ""
+        _reset = "\033[0m" if sys.stderr.isatty() else ""
+        print(
+            f"\n{_red}WARNING: every include criterion was also excluded, so the include block is empty — "
+            f"for {', '.join(emptied)} this connector forwards everything EXCEPT the exclude list.{_reset}",
+            file=sys.stderr,
+        )
+        if not args.lenient:
+            print(f"{_red}Exiting without output — fix the overlap between include and exclude.\n"
+                  f"Use --lenient to generate it anyway.{_reset}", file=sys.stderr)
             sys.exit(1)
 
     if args.stdout:
