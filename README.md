@@ -45,7 +45,7 @@ The script:
 3. For each organization, resolves any names in the config or `--include-*` / `--exclude-*` flags to IDs scoped to that org.
 4. Writes one payload file per organization.
 
-A key scoped to a single organization produces one output file with no additional flags required. A key with access to a parent org and its children processes all orgs in that hierarchy (optionally restricted with `--org`). **Account-wide (superadmin) keys are not supported** — the script exits with an error if one is detected.
+A key scoped to a single organization produces one output file with no additional flags required. A key with access to a parent org and its children processes all orgs in that hierarchy (optionally restricted with `--org`). **Keys that span several unrelated organization hierarchies are not supported** — the script exits with an error if one is detected; use a key scoped to one hierarchy. Naming an org with `--org` does not bypass this.
 
 If any monitoring point name/ID, policy name/ID, or policy group name/ID cannot be matched, the item is omitted from the payload and all such errors are written to `<config-stem>-connector-error.txt`. The error file lists exactly what was not found and what options are available, so you can correct your config or flags and rerun.
 
@@ -77,9 +77,9 @@ The script uses the number of **root-level orgs** returned by `GET /api/v4/organ
 |---|---|---|
 | **Org-level key** (scoped to one org) | 1 root, no children | Proceeds automatically — no `--org` needed |
 | **Org-admin key** (parent + children) | 1 root + children | Proceeds automatically — all orgs in the hierarchy are processed |
-| **Superadmin key** (account-wide) | Multiple roots | **Not supported — exits with an error** |
+| **Multi-hierarchy key** (several unrelated customers) | Multiple roots | **Not supported — exits with an error** |
 
-**Superadmin keys are not supported.** An account-wide key has access to all customer organizations on the AppNeta NIS. Using one in an automated script or sharing it with other tools is a security risk. The script detects this condition and exits immediately with a clear message.
+**Keys spanning multiple unrelated hierarchies are not supported.** The script detects this condition and exits immediately with a clear message.
 
 Create a **read-only API key scoped to the specific organization(s)** you want to configure. See [API access tokens](https://techdocs.broadcom.com/us/en/ca-enterprise-software/it-operations-management/appneta/GA/integrate/api/api-access-tokens.html) for instructions.
 
@@ -420,7 +420,7 @@ For `monitoring_point_types`, plain substrings (e.g. `m50`) are resolved against
 
 ## SECURITY NOTES
 
-- **No superadmin keys.** Account-wide (superadmin) API keys are not supported and will be rejected. Use a read-only key scoped to the specific organization(s) you are configuring. See [API access tokens](https://techdocs.broadcom.com/us/en/ca-enterprise-software/it-operations-management/appneta/GA/integrate/api/api-access-tokens.html).
+- **Org-scoped keys only.** API keys that span multiple unrelated hierarchies are rejected. Use a read-only key scoped to the specific organization(s) you are configuring. See [API access tokens](https://techdocs.broadcom.com/us/en/ca-enterprise-software/it-operations-management/appneta/GA/integrate/api/api-access-tokens.html).
 - **HTTPS required.** `base_url` must be a valid HTTPS URL pointing to a hostname — the script exits if it is not. IP address literals are also rejected.
 - **Output file permissions.** All output files (`.json` and `-connector-error.txt`) are written with mode `0o600` (owner read/write only). This protects payloads that may contain auth tokens or webhook credentials.
 - **Credentials in config.** `webhook.auth.token` and `webhook.auth.password` must not be stored in the config file — the script exits with an error if they are. Set `CUSTOMER_WEBHOOK_TOKEN` (BEARER auth) or `CUSTOMER_WEBHOOK_PASSWORD` (BASIC auth) as environment variables, consistent with how `APPNETA_API_KEY` is handled.

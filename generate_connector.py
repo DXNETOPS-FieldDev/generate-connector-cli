@@ -16,8 +16,9 @@ per organization. API keys scoped to a single organization produce one output
 file; keys with access to multiple organizations produce one file per org.
 
 IMPORTANT — API key scope:
-  API keys must be scoped to specific organizations. Account-wide (superadmin)
-  keys are not supported — the script will exit with an error if one is detected.
+  API keys must be scoped to specific organizations. Keys that span several
+  unrelated organization hierarchies are not supported — the script will exit
+  with an error if one is detected.
   Create a dedicated read-only API key restricted to the target organization(s).
 
 Requires Python 3.11+ (tomllib is stdlib as of 3.11). No external dependencies.
@@ -673,11 +674,10 @@ def _build_org_tree(orgs: list[dict]) -> str:
     return "\n".join(lines)
 
 
-def _exit_superadmin_key(orgs: list[dict], roots: list[dict]) -> None:
-    """Print a clear error message and exit when a superadmin key is detected.
+def _exit_multi_hierarchy_key(orgs: list[dict], roots: list[dict]) -> None:
+    """Print a clear error message and exit when the key spans multiple unrelated hierarchies.
 
-    A superadmin (account-wide) key returns organizations from multiple unrelated
-    customer hierarchies. This tool requires an org-scoped key.
+    This tool requires an org-scoped key.
     """
     tree = _build_org_tree(orgs)
     width = 70
@@ -690,10 +690,6 @@ def _exit_superadmin_key(orgs: list[dict], roots: list[dict]) -> None:
     print(f"  The key provided has access to {len(orgs)} organizations across", file=sys.stderr)
     print(f"  {len(roots)} unrelated customer hierarchies, which indicates an", file=sys.stderr)
     print("  account-wide key.", file=sys.stderr)
-    print(file=sys.stderr)
-    print("  Account-wide keys expose all customer data on the AppNeta NIS.", file=sys.stderr)
-    print("  Using one in an automated script or distributing it is a security", file=sys.stderr)
-    print("  risk and is not permitted by this tool.", file=sys.stderr)
     print(file=sys.stderr)
     print("  Create a read-only API key scoped to the specific organization(s)", file=sys.stderr)
     print("  you want to configure:", file=sys.stderr)
@@ -2010,8 +2006,8 @@ POST vs PUT (CREATE vs UPDATE):
   --connector-id is OPTIONAL — only set it when updating an existing connector.
 
 IMPORTANT — API key scope:
-  API keys should be scoped to specific organizations. A key with account-wide
-  access will iterate every visible organization and generate a payload for each.
+  API keys should be scoped to specific organizations. A key with access to
+  several organizations will generate a payload for each visible organization.
   Create a dedicated read-only key restricted to the target organization(s).
 
 Base URL is required. Set it in the config file (base_url), via --base-url,
@@ -2262,9 +2258,13 @@ def main() -> None:
 
     orgs = AppNetaClient.list_organizations(base_url, api_key)
 
+    # Multi-hierarchy key check — on the full org set, before any --org restriction,
+    # so naming one org does not make such a key acceptable.
+    roots = _root_orgs(orgs)
+    if len(roots) > 1:
+        _exit_multi_hierarchy_key(orgs, roots)
+
     # Org restriction: CLI --org takes precedence over TOML org=
-    # Apply this BEFORE the superadmin check so that a wide key with an explicit
-    # org= narrows cleanly to a single hierarchy without triggering the key error.
     restrict_spec = args.org if args.org is not None else config.get("org")
 
     if restrict_spec is not None:
@@ -2291,12 +2291,6 @@ def main() -> None:
 
         orgs = matched
     # else: no restriction — proceed with all orgs returned for this key
-
-    # Superadmin (account-wide) key check — after any org restriction is applied.
-    # A key that still spans multiple unrelated hierarchies at this point is not permitted.
-    roots = _root_orgs(orgs)
-    if len(roots) > 1:
-        _exit_superadmin_key(orgs, roots)
 
     # Enforce single-org for UPDATE mode — connector IDs are org-scoped.
     connector_id_in_config = config.get("connector", {}).get("id")

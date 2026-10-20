@@ -11,6 +11,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import generate_connector as gc
 from test_precheck import MINIMAL_VALID, errors_for
+from fixtures import ORGS_MULTI_ROOT
 
 
 class TestEmptiedInclude(unittest.TestCase):
@@ -116,6 +117,34 @@ class TestDryRunWritesNothing(unittest.TestCase):
                     patch.object(sys, "stderr", sys.stdout), self.assertRaises(SystemExit):
                 gc.main()
             self.assertFalse(os.path.exists(out))
+
+
+class TestMultiHierarchyKeyIsRejectedEvenWithOrg(unittest.TestCase):
+
+    def _run(self, *extra):
+        with tempfile.TemporaryDirectory() as d:
+            cfg = os.path.join(d, "c.toml")
+            with open(cfg, "w") as fh:
+                fh.write(MINIMAL_VALID)
+            argv = ["generate_connector.py", cfg, "--dry-run", *extra]
+            env = {"APPNETA_API_KEY": "k", "APPNETA_BASE_URL": "https://nis.example.com"}
+            out = tempfile.TemporaryFile("w+")
+            with patch.object(sys, "argv", argv), patch.dict(os.environ, env), \
+                    patch.object(gc.AppNetaClient, "list_organizations", return_value=ORGS_MULTI_ROOT), \
+                    patch.object(sys, "stdout", out), self.assertRaises(SystemExit) as ctx:
+                gc.main()
+            out.seek(0)
+            return ctx.exception.code, out.read()
+
+    def test_rejected_without_org(self):
+        code, out = self._run()
+        self.assertEqual(code, 1)
+        self.assertIn("Superadmin API Key Detected", out)
+
+    def test_rejected_even_when_org_names_one_hierarchy(self):
+        code, out = self._run("--org", "4160")
+        self.assertEqual(code, 1)
+        self.assertIn("Superadmin API Key Detected", out)
 
 
 if __name__ == "__main__":
