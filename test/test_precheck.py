@@ -359,7 +359,7 @@ class TestConnectorIdConflict(unittest.TestCase):
         env.setdefault("APPNETA_API_KEY", "dummy-key-for-test")
         try:
             result = subprocess.run(
-                [sys.executable, self._SCRIPT, path] + extra_args,
+                [sys.executable, self._SCRIPT, path, *extra_args],
                 capture_output=True, text=True, env=env,
             )
             return result.returncode, result.stderr
@@ -396,17 +396,17 @@ url = "https://example.com/hook"
 
     def test_matching_ids_are_not_rejected(self):
         # Same ID in both TOML and CLI — no conflict
-        rc, stderr = self._run(self._TOML_WITH_ID, ["--connector-id", "12345"])
+        _rc, stderr = self._run(self._TOML_WITH_ID, ["--connector-id", "12345"])
         self.assertNotIn("Conflicting connector IDs", stderr)
 
     def test_cli_id_with_no_toml_id_is_allowed(self):
         # TOML has no connector.id — --connector-id is fine
-        rc, stderr = self._run(self._TOML_NO_ID, ["--connector-id", "12345"])
+        _rc, stderr = self._run(self._TOML_NO_ID, ["--connector-id", "12345"])
         self.assertNotIn("Conflicting connector IDs", stderr)
 
     def test_toml_id_with_no_cli_flag_is_allowed(self):
         # TOML-only connector.id — no issue
-        rc, stderr = self._run(self._TOML_WITH_ID, [])
+        _rc, stderr = self._run(self._TOML_WITH_ID, [])
         self.assertNotIn("Conflicting connector IDs", stderr)
 
 
@@ -431,7 +431,7 @@ class TestMixedFilterBlocking(unittest.TestCase):
         env.setdefault("APPNETA_API_KEY", "dummy-key-for-test")
         try:
             result = subprocess.run(
-                [sys.executable, self._SCRIPT, path] + extra_args,
+                [sys.executable, self._SCRIPT, path, *extra_args],
                 capture_output=True, text=True, env=env,
             )
             return result.returncode, result.stderr
@@ -481,15 +481,15 @@ url = "https://example.com/hook"
 
     def test_toml_with_filters_and_no_cli_flags_is_allowed(self):
         # TOML-only — no issue
-        rc, stderr = self._run(self._TOML_WITH_INCLUDE, [])
+        _rc, stderr = self._run(self._TOML_WITH_INCLUDE, [])
         self.assertNotIn("Cannot mix", stderr)
 
     def test_error_message_names_the_offending_flags(self):
-        rc, stderr = self._run(self._TOML_WITH_INCLUDE, ["--include-mp-names", "ACME-*"])
+        _rc, stderr = self._run(self._TOML_WITH_INCLUDE, ["--include-mp-names", "ACME-*"])
         self.assertIn("--include-mp-names", stderr)
 
     def test_error_message_names_the_toml_blocks(self):
-        rc, stderr = self._run(self._TOML_WITH_INCLUDE, ["--include-tag", "Location"])
+        _rc, stderr = self._run(self._TOML_WITH_INCLUDE, ["--include-tag", "Location"])
         self.assertIn("[include]", stderr)
 
 

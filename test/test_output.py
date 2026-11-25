@@ -8,6 +8,7 @@ strings that aren't deployed, bad tag categories/values, and glob edge cases.
 """
 import os
 import sys
+import tempfile
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -155,13 +156,13 @@ class TestFilterOutputCorrect(unittest.TestCase):
         self.assertEqual(errors, [])
 
     def test_alarm_rule_ids_passthrough(self):
-        out, errors = _build({"alarm_rule_ids": [105, 210]})
+        out, _errors = _build({"alarm_rule_ids": [105, 210]})
         self.assertIn("alarmRuleId", out)
         self.assertIn(105, out["alarmRuleId"])
         self.assertIn(210, out["alarmRuleId"])
 
     def test_targets_passthrough(self):
-        out, errors = _build({"targets": ["example.com", "api.acme.corp"]})
+        out, _errors = _build({"targets": ["example.com", "api.acme.corp"]})
         self.assertIn("target", out)
         self.assertIn("example.com", out["target"])
 
@@ -194,16 +195,16 @@ class TestGlobPassthrough(unittest.TestCase):
         self.assertEqual(errors, [])
 
     def test_double_star_glob_passthrough(self):
-        out, errors = _build({"monitoring_point_names": ["ACME-**"]})
+        out, _errors = _build({"monitoring_point_names": ["ACME-**"]})
         self.assertIn("monitoringPointName", out)
         self.assertIn("ACME-**", out["monitoringPointName"])
 
     def test_question_mark_glob_passthrough(self):
-        out, errors = _build({"monitoring_point_names": ["ACME-MP-?"]})
+        out, _errors = _build({"monitoring_point_names": ["ACME-MP-?"]})
         self.assertIn("monitoringPointName", out)
 
     def test_plus_glob_passthrough(self):
-        out, errors = _build({"monitoring_point_names": ["ACME-MP-+"]})
+        out, _errors = _build({"monitoring_point_names": ["ACME-MP-+"]})
         self.assertIn("monitoringPointName", out)
 
     def test_mixed_plain_and_glob_produces_both_keys(self):
@@ -222,7 +223,7 @@ class TestGlobPassthrough(unittest.TestCase):
         self.assertEqual(errors, [])
 
     def test_glob_via_cli_override(self):
-        out, errors = _build({}, mp_names=["!owncloud*"])
+        out, _errors = _build({}, mp_names=["!owncloud*"])
         self.assertIn("monitoringPointName", out)
         self.assertIn("!owncloud*", out["monitoringPointName"])
 
@@ -302,7 +303,7 @@ class TestTagResolution(unittest.TestCase):
     def test_no_duplicate_tags_from_combined_config_and_cli(self):
         # Same tag from both config and CLI spec — should appear only once
         section = {"tags": [{"category": "Cloud", "value": "GCP"}]}
-        out, errors = _build(section, tags=["Clouds:GCP"])
+        out, _errors = _build(section, tags=["Clouds:GCP"])
         tag_pairs = [(t["category"], t["value"]) for t in out.get("tag", [])]
         self.assertEqual(tag_pairs.count(("Cloud", "GCP")), 1)
 
@@ -452,8 +453,6 @@ class TestUnfilteredPayload(unittest.TestCase):
 
 # These tests live here rather than test_precheck.py to keep tag-specific
 # scenarios co-located with the rest of tag testing.
-
-import tempfile
 
 
 def _tag_precheck_errors(toml_content: str) -> list[dict]:

@@ -2,6 +2,7 @@
 import os
 import sys
 import unittest
+from typing import ClassVar
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import generate_connector as gc
@@ -128,7 +129,7 @@ class TestRemoveContradictions(unittest.TestCase):
 
 class TestMergeWithExisting(unittest.TestCase):
 
-    EXISTING = {
+    EXISTING: ClassVar[dict] = {
         "name": "Old Name",
         "enabled": True,
         "description": "Old description",
@@ -212,31 +213,31 @@ class TestDiffConnector(unittest.TestCase):
         current  = {"name": "Old"}
         proposed = {"name": "New"}
         lines = gc.diff_connector(current, proposed)
-        self.assertTrue(any("name" in l for l in lines))
+        self.assertTrue(any("name" in ln for ln in lines))
 
     def test_enabled_change_detected(self):
         current  = {"name": "X", "enabled": True}
         proposed = {"name": "X", "enabled": False}
         lines = gc.diff_connector(current, proposed)
-        self.assertTrue(any("enabled" in l for l in lines))
+        self.assertTrue(any("enabled" in ln for ln in lines))
 
     def test_new_description_marked_as_added(self):
         current  = {"name": "X"}
         proposed = {"name": "X", "description": "New desc"}
         lines = gc.diff_connector(current, proposed)
-        self.assertTrue(any("+" in l for l in lines))
+        self.assertTrue(any("+" in ln for ln in lines))
 
     def test_removed_field_marked_as_removed(self):
         current  = {"name": "X", "description": "Old desc"}
         proposed = {"name": "X"}
         lines = gc.diff_connector(current, proposed)
-        self.assertTrue(any("-" in l for l in lines))
+        self.assertTrue(any("-" in ln for ln in lines))
 
     def test_severity_change_in_include_detected(self):
         current  = {"name": "X", "include": {"severity": ["CRITICAL"]}}
         proposed = {"name": "X", "include": {"severity": ["MAJOR"]}}
         lines = gc.diff_connector(current, proposed)
-        self.assertTrue(any("severity" in l for l in lines))
+        self.assertTrue(any("severity" in ln for ln in lines))
 
     def test_no_diff_when_include_unchanged(self):
         p = {"name": "X", "include": {"severity": ["CRITICAL"]}, "notifyOn": ["ALARM_RAISED"]}
@@ -245,7 +246,7 @@ class TestDiffConnector(unittest.TestCase):
 
 class TestMergeContradictionsAndSsl(unittest.TestCase):
 
-    EXISTING = {"name": "Old", "include": {"severity": ["CRITICAL"]}, "exclude": {},
+    EXISTING: ClassVar[dict] = {"name": "Old", "include": {"severity": ["CRITICAL"]}, "exclude": {},
                 "connectors": [{"id": 9, "type": "WEBHOOK", "url": "https://old.example.com"}]}
 
     def test_contradiction_created_by_merge_is_resolved_exclude_wins(self):
@@ -266,14 +267,16 @@ class TestMergeContradictionsAndSsl(unittest.TestCase):
         from unittest.mock import MagicMock
         for flag, expected in ((False, False), (True, True)):
             cfg = {"connector": {"name": "N"}, "webhook": {"url": "https://h.example.com", "ignore_ssl_errors": flag}}
-            client = MagicMock(); client.org_name = "Acme"
+            client = MagicMock()
+            client.org_name = "Acme"
             payload = gc.build_payload(cfg, MagicMock(), client, [])
             self.assertIs(payload["connectors"][0]["ignoreSSLErrors"], expected)
 
     def test_ignore_ssl_errors_is_omitted_when_not_configured(self):
         from unittest.mock import MagicMock
         cfg = {"connector": {"name": "N"}, "webhook": {"url": "https://h.example.com"}}
-        client = MagicMock(); client.org_name = "Acme"
+        client = MagicMock()
+        client.org_name = "Acme"
         payload = gc.build_payload(cfg, MagicMock(), client, [])
         self.assertNotIn("ignoreSSLErrors", payload["connectors"][0])
 

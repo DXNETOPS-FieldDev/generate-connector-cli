@@ -97,7 +97,8 @@ class TestBackupFile(unittest.TestCase):
 
     def test_backup_is_private(self):
         with tempfile.TemporaryDirectory() as d:
-            old = os.getcwd(); os.chdir(d)
+            old = os.getcwd()
+            os.chdir(d)
             try:
                 path = gc._write_backup({"id": 5, "name": "x"}, 5)
                 mode = stat.S_IMODE(os.stat(path).st_mode)
@@ -128,7 +129,7 @@ class TestMultiHierarchyKeyIsRejectedEvenWithOrg(unittest.TestCase):
                 fh.write(MINIMAL_VALID)
             argv = ["generate_connector.py", cfg, "--dry-run", *extra]
             env = {"APPNETA_API_KEY": "k", "APPNETA_BASE_URL": "https://nis.example.com"}
-            out = tempfile.TemporaryFile("w+")
+            out = tempfile.TemporaryFile("w+")  # noqa: SIM115  (read back after main(); closed when the test frees it)
             with patch.object(sys, "argv", argv), patch.dict(os.environ, env), \
                     patch.object(gc.AppNetaClient, "list_organizations", return_value=ORGS_MULTI_ROOT), \
                     patch.object(sys, "stdout", out), self.assertRaises(SystemExit) as ctx:

@@ -58,7 +58,7 @@ if sys.version_info < (3, 11):  # pyright: ignore[reportUnnecessaryComparison]
     print("=" * 70, file=sys.stderr)
     print("  Python Version Error", file=sys.stderr)
     print("=" * 70, file=sys.stderr)
-    print(f"  Required : Python 3.11 or higher", file=sys.stderr)
+    print("  Required : Python 3.11 or higher", file=sys.stderr)
     print(f"  Found    : Python {found}", file=sys.stderr)
     print(file=sys.stderr)
     print("  tomllib (built-in TOML support) was added in Python 3.11.", file=sys.stderr)
@@ -429,7 +429,7 @@ def precheck_toml(path: str) -> tuple[dict | None, list[dict]]:
         if sev is not None:
             if not isinstance(sev, list):
                 err(f"{section_name}.severity", "severity must be a list of strings.",
-                    f'Fix: severity = ["CRITICAL", "MAJOR"]')
+                    'Fix: severity = ["CRITICAL", "MAJOR"]')
             else:
                 invalid = [s for s in sev if not isinstance(s, str) or s.upper() not in VALID_SEVERITIES]
                 if invalid:
@@ -1337,7 +1337,7 @@ def build_filter(
         raw = section.get(toml_key)
         if raw is None:
             continue
-        values = [raw] if isinstance(raw, int) and not isinstance(raw, bool) else list(raw)
+        values = [raw] if isinstance(raw, int) and not isinstance(raw, bool) else list(raw)  # pyright: ignore[reportArgumentType]  # raw is a list here: the scalar case is handled above
         ids = sorted({int(x) for x in values if isinstance(x, int) and not isinstance(x, bool) and x > 0})
         if ids:
             out[out_key] = sorted(set(out.get(out_key, [])) | set(ids))
@@ -1600,7 +1600,7 @@ def _orgs_with_emptied_include(results: list, errors: list[dict]) -> list[str]:
     exclude-wins can leave only an exclude block, which turns 'only X' into 'everything except X'.
     """
     hit = {e.get("org") for e in errors if e.get("type") == "contradiction"}
-    return [c.org_name for c, p in results if c.org_name in hit and "include" not in p]
+    return [c.org_name for c, p in results if c.org_name in hit and "include" not in p]  # pyright: ignore[reportReturnType]  # org_name is set for every result that reaches here
 
 
 def write_errors(errors: list[dict], stem: str, source_desc: str) -> str:
@@ -1874,13 +1874,13 @@ def _write_filter_block(lines: list[str], section: str, args: argparse.Namespace
         lines.append("")
 
     if partial_tags:
-        lines.append(f"# Partial tag specs cannot be stored as-is in TOML.")
+        lines.append("# Partial tag specs cannot be stored as-is in TOML.")
         lines.append(f"# Expand each to an explicit [[{section}.tags]] block:")
         for t in partial_tags:
             lines.append(f"#   --{section}-tag {t!r}")
         lines.append(f"# [[{section}.tags]]")
-        lines.append(f'# category = "Location"   # replace with actual category')
-        lines.append(f'# value    = "Seattle WA"  # replace with actual value')
+        lines.append('# category = "Location"   # replace with actual category')
+        lines.append('# value    = "Seattle WA"  # replace with actual value')
         lines.append("")
 
 
@@ -2326,12 +2326,12 @@ def main() -> None:
         if mode == "PUT":
             payload["id"] = connector_id
             print(f"  Mode   : UPDATE (connector.id={connector_id})", file=sys.stderr)
-            _require_existing(existing, connector_id, client.org_name, args.lenient)
+            _require_existing(existing, connector_id, client.org_name, args.lenient)  # pyright: ignore[reportArgumentType]  # connector_id is set whenever mode == "PUT"
             if existing is None:
                 print("  (existing connector not readable — merge and diff unavailable)", file=sys.stderr)
             else:
                 if not args.dry_run:
-                    backup_path = _write_backup(existing, connector_id)
+                    backup_path = _write_backup(existing, connector_id)  # pyright: ignore[reportArgumentType]  # connector_id is set whenever mode == "PUT"
                     print(f"  Backup : {backup_path} (credential header values are masked as ****** by AppNeta — restore them manually before reusing)", file=sys.stderr)
                 payload = merge_with_existing(payload, existing, all_errors, client.org_name)
                 diff = diff_connector(existing, payload)
@@ -2343,7 +2343,7 @@ def main() -> None:
                     print("  No changes vs. existing connector.", file=sys.stderr)
             print(f"  PUT URL: {base_url}/api/v4/connector/alarm/{connector_id}?orgId={client.org_id}", file=sys.stderr)
         else:
-            print(f"  Mode   : CREATE (no connector.id — POST to create new)", file=sys.stderr)
+            print("  Mode   : CREATE (no connector.id — POST to create new)", file=sys.stderr)
             print(f"  POST URL: {base_url}/api/v4/connector/alarm?orgId={client.org_id}", file=sys.stderr)
 
         results.append((client, payload))
@@ -2421,7 +2421,7 @@ def main() -> None:
             sys.exit(1)
 
     if args.stdout:
-        for client, payload in results:
+        for _client, payload in results:
             print(json.dumps(payload, indent=2))
     else:
         for client, payload in results:
